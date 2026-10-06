@@ -99,7 +99,6 @@ def estrategias_obv(df, sma_obv=20, ema_obv=10, sma2_obv=30, sma_precio=20):
     df['Pos_OBV_E3_Cruce_Medias'] = generar_posicion(df, cond_compra=c_e3, cond_neutral=n_e3)
     
     # E4: Filtro Dual (Precio y Volumen)
-    # Corrección: Ahora lee la SMA del precio de forma dinámica (sma_precio)
     c_e4 = (df['Close'] > df[f'SMA_{sma_precio}']) & (df['OBV'] > df[f'OBV_SMA{sma_obv}'])
     n_e4 = ~c_e4
     df['Pos_OBV_E4_Filtro_Dual'] = generar_posicion(df, cond_compra=c_e4, cond_neutral=n_e4)

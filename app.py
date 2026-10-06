@@ -127,16 +127,16 @@ def obtener_datos_grafica(ticker, period, mm_r, mm_l, bb_p, bb_s, m_r, m_l, m_s,
 
 df_chart = obtener_datos_grafica(activo_seleccionado, periodo, mm_rapida, mm_lenta, bb_periodos, bb_std, macd_r, macd_l, macd_s, rsi_p, adx_p, sto_k, sto_d, sar_paso, sar_max)
 
-# Integrar posiciones algorítmicas
+# Integrar posiciones algorítmicas de forma segura usando keyword arguments
 if df_chart is not None and not df_chart.empty:
-    df_chart = estrategias_medias_moviles(df_chart, mm_rapida, mm_lenta)
-    df_chart = estrategias_bollinger(df_chart, bb_periodos)
+    df_chart = estrategias_medias_moviles(df_chart, mm_r=mm_rapida, mm_l=mm_lenta)
+    df_chart = estrategias_bollinger(df_chart, periodos=bb_periodos)
     df_chart = estrategias_estocastico(df_chart)
-    df_chart = estrategias_obv(df_chart, 20, 10, 30, mm_rapida)
+    df_chart = estrategias_obv(df_chart, sma_obv=20, ema_obv=10, sma2_obv=30, sma_precio=mm_rapida)
     df_chart = estrategias_macd(df_chart)
-    df_chart = estrategias_adx(df_chart, 25)
-    df_chart = estrategias_rsi(df_chart, rsi_p, 9)
-    df_chart = estrategias_sar(df_chart, mm_lenta)
+    df_chart = estrategias_adx(df_chart, umbral=25)
+    df_chart = estrategias_rsi(df_chart, rsi_p=rsi_p, sma_rsi=9)
+    df_chart = estrategias_sar(df_chart, ema_l=mm_lenta)
 
 # ==========================================
 # VISTA PRINCIPAL (3 PESTAÑAS)
