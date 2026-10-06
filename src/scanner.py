@@ -31,12 +31,8 @@ def auditar_activo(ticker):
         for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        df.dropna(inplace=True)
 
-        if len(df) < 30:
-            return {"Activo": ticker, "Error": "Datos insuficientes."}
-
-        # 2. Ingesta Matemática (Cálculo Vectorizado)
+        # 2. Ingesta Matemática (Cálculo Vectorizado sobre toda la muestra)
         df = calcular_medias_moviles(df, col_precio='Close')
         df = calcular_bollinger(df, col_precio='Close')
         df = calcular_estocastico(df, col_high='High', col_low='Low', col_close='Close')
@@ -46,7 +42,14 @@ def auditar_activo(ticker):
         df = calcular_rsi(df, col_precio='Close')
         df = calcular_parabolic_sar(df, col_high='High', col_low='Low')
 
-        # 3. Telemetría de Frontera (T=0 y T-1)
+        # 3. Limpieza de valores nulos (Periodo de calentamiento)
+        df.dropna(inplace=True)
+
+        # Verificamos si quedaron suficientes datos después de descartar el calentamiento
+        if len(df) < 10:
+            return {"Activo": ticker, "Error": "Datos insuficientes tras calentamiento."}
+
+        # 4. Telemetría de Frontera (T=0 y T-1)
         cierre_actual = float(df['Close'].iloc[-1])
         fecha_corte = df.index[-1].strftime('%Y-%m-%d')
 
@@ -194,7 +197,7 @@ def auditar_activo(ticker):
         else:
             sar_estado, sar_orden = "Mercado Débil", "MANTENER EN LIQUIDEZ"
 
-        # 4. Estructura de Salida JSON Estructurada
+        # 5. Estructura de Salida JSON Estructurada
         return {
             "Activo": ticker,
             "Fecha": fecha_corte,

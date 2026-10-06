@@ -23,15 +23,16 @@ from src.backtester import calcular_rendimientos, calcular_metricas
 # ==========================================
 st.set_page_config(page_title="Terminal Quant | Institucional", layout="wide", initial_sidebar_state="expanded")
 
+# CSS modificado para un tema claro y profesional
 st.markdown("""
     <style>
     .main .block-container { padding-top: 1rem; padding-bottom: 2rem; }
-    div[data-testid="metric-container"] { background-color: #161a25; border: 1px solid #2b3040; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.4); }
-    div[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 600; color: #00e676; }
-    div[data-testid="stMetricLabel"] { font-size: 0.85rem; color: #8c9bb5; text-transform: uppercase; letter-spacing: 1px; }
+    div[data-testid="metric-container"] { background-color: #ffffff; border: 1px solid #e0e6ed; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    div[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 600; color: #204a87; }
+    div[data-testid="stMetricLabel"] { font-size: 0.85rem; color: #5c677d; text-transform: uppercase; letter-spacing: 1px; }
     .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: transparent; border-radius: 4px 4px 0px 0px; gap: 1px; padding-top: 10px; padding-bottom: 10px; font-size: 1.1rem; font-weight: 600; }
-    .stDataFrame { border: 1px solid #2b3040; border-radius: 5px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: transparent; border-radius: 4px 4px 0px 0px; gap: 1px; padding-top: 10px; padding-bottom: 10px; font-size: 1.1rem; font-weight: 600; color: #333333; }
+    .stDataFrame { border: 1px solid #e0e6ed; border-radius: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -108,7 +109,8 @@ def obtener_datos_grafica(ticker, period, mm_r, mm_l, bb_p, bb_s, m_r, m_l, m_s,
         df.columns = df.columns.get_level_values(0)
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce')
-    df.dropna(inplace=True)
+    
+    # 1. Calculamos indicadores
     df = calcular_medias_moviles(df, 'Close', mm_r, mm_l)
     df = calcular_bollinger(df, 'Close', bb_p, bb_s)
     df = calcular_macd(df, 'Close', m_r, m_l, m_s)
@@ -117,16 +119,20 @@ def obtener_datos_grafica(ticker, period, mm_r, mm_l, bb_p, bb_s, m_r, m_l, m_s,
     df = calcular_adx(df, 'High', 'Low', 'Close', a_p)
     df = calcular_rsi(df, 'Close', r_p)
     df = calcular_parabolic_sar(df, 'High', 'Low', sar_p, sar_m)
+    
+    # 2. Eliminamos nulos rezagados (Periodo de calentamiento)
+    df.dropna(inplace=True)
+    
     return df
 
 df_chart = obtener_datos_grafica(activo_seleccionado, periodo, mm_rapida, mm_lenta, bb_periodos, bb_std, macd_r, macd_l, macd_s, rsi_p, adx_p, sto_k, sto_d, sar_paso, sar_max)
 
-# Integrar posiciones algorítmicas de forma obligatoria
+# Integrar posiciones algorítmicas
 if df_chart is not None and not df_chart.empty:
     df_chart = estrategias_medias_moviles(df_chart, mm_rapida, mm_lenta)
     df_chart = estrategias_bollinger(df_chart, bb_periodos)
     df_chart = estrategias_estocastico(df_chart)
-    df_chart = estrategias_obv(df_chart, 20, 10, 30)
+    df_chart = estrategias_obv(df_chart, 20, 10, 30, mm_rapida)
     df_chart = estrategias_macd(df_chart)
     df_chart = estrategias_adx(df_chart, 25)
     df_chart = estrategias_rsi(df_chart, rsi_p, 9)
@@ -160,76 +166,142 @@ with tab_grafico:
         fig = make_subplots(rows=num_subplots+1, cols=1, shared_xaxes=True, vertical_spacing=0.03, subplot_titles=[f'Acción de Precio'] + subplots_seleccionados, row_heights=row_heights)
 
         fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], name='Precio'), row=1, col=1)
+        
+        # Colores ajustados para fondos claros
         if opcion_sma in overlays_seleccionados:
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'SMA_{mm_rapida}'], line=dict(color='#f6b26b', width=1.5), name=f'SMA {mm_rapida}'), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'SMA_{mm_lenta}'], line=dict(color='#6fa8dc', width=1.5), name=f'SMA {mm_lenta}'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'SMA_{mm_rapida}'], line=dict(color='#e67e22', width=1.5), name=f'SMA {mm_rapida}'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'SMA_{mm_lenta}'], line=dict(color='#2980b9', width=1.5), name=f'SMA {mm_lenta}'), row=1, col=1)
         if opcion_ema in overlays_seleccionados:
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'EMA_{mm_rapida}'], line=dict(color='#00e676', width=1.5, dash='dash'), name=f'EMA {mm_rapida}'), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'EMA_{mm_lenta}'], line=dict(color='#e74c3c', width=1.5, dash='dash'), name=f'EMA {mm_lenta}'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'EMA_{mm_rapida}'], line=dict(color='#27ae60', width=1.5, dash='dash'), name=f'EMA {mm_rapida}'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'EMA_{mm_lenta}'], line=dict(color='#c0392b', width=1.5, dash='dash'), name=f'EMA {mm_lenta}'), row=1, col=1)
         if "Bandas de Bollinger" in overlays_seleccionados:
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'UB_{bb_periodos}'], line=dict(color='rgba(255,255,255,0.3)', width=1, dash='dot'), name='Banda Sup'), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'LB_{bb_periodos}'], line=dict(color='rgba(255,255,255,0.3)', width=1, dash='dot'), name='Banda Inf', fill='tonexty', fillcolor='rgba(255,255,255,0.03)'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'UB_{bb_periodos}'], line=dict(color='rgba(0,0,0,0.2)', width=1, dash='dot'), name='Banda Sup'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'LB_{bb_periodos}'], line=dict(color='rgba(0,0,0,0.2)', width=1, dash='dot'), name='Banda Inf', fill='tonexty', fillcolor='rgba(0,0,0,0.05)'), row=1, col=1)
         if "Parabolic SAR" in overlays_seleccionados:
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SAR'], mode='markers', marker=dict(color='#9b59b6', size=3), name='SAR'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SAR'], mode='markers', marker=dict(color='#8e44ad', size=3), name='SAR'), row=1, col=1)
 
         current_row = 2
         for subplot in subplots_seleccionados:
             if subplot == "Volumen":
-                colores_volumen = ['#00e676' if c >= o else '#ff4d4d' for c, o in zip(df_chart['Close'], df_chart['Open'])]
+                colores_volumen = ['#2ecc71' if c >= o else '#e74c3c' for c, o in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colores_volumen, name='Volumen'), row=current_row, col=1)
             elif subplot == "MACD":
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['MACD_Line'], line=dict(color='#3498db', width=1.5), name='MACD'), row=current_row, col=1)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['Signal_Line'], line=dict(color='#ff9f43', width=1.5), name='Señal'), row=current_row, col=1)
-                colores_hist = ['#00e676' if val >= 0 else '#ff4d4d' for val in df_chart['Histograma']]
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['MACD_Line'], line=dict(color='#2980b9', width=1.5), name='MACD'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['Signal_Line'], line=dict(color='#d35400', width=1.5), name='Señal'), row=current_row, col=1)
+                colores_hist = ['#2ecc71' if val >= 0 else '#e74c3c' for val in df_chart['Histograma']]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Histograma'], marker_color=colores_hist, name='Histograma'), row=current_row, col=1)
             elif subplot == "RSI":
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'RSI_{rsi_p}'], line=dict(color='#f1c40f', width=1.5), name=f'RSI {rsi_p}'), row=current_row, col=1)
-                fig.add_hline(y=70, line_dash="dash", line_color="#ff4d4d", row=current_row, col=1)
-                fig.add_hline(y=30, line_dash="dash", line_color="#00e676", row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart[f'RSI_{rsi_p}'], line=dict(color='#d35400', width=1.5), name=f'RSI {rsi_p}'), row=current_row, col=1)
+                fig.add_hline(y=70, line_dash="dash", line_color="#e74c3c", row=current_row, col=1)
+                fig.add_hline(y=30, line_dash="dash", line_color="#2ecc71", row=current_row, col=1)
             elif subplot == "OBV":
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['OBV'], line=dict(color='#00cec9', width=1.5), name='OBV'), row=current_row, col=1)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['OBV_SMA20'], line=dict(color='#fdcb6e', width=1.5, dash='dot'), name='SMA 20 (OBV)'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['OBV'], line=dict(color='#16a085', width=1.5), name='OBV'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['OBV_SMA20'], line=dict(color='#f39c12', width=1.5, dash='dot'), name='SMA 20 (OBV)'), row=current_row, col=1)
             elif subplot == "ADX":
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['ADX'], line=dict(color='#9b59b6', width=2), name=f'ADX {adx_p}'), row=current_row, col=1)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['+DI'], line=dict(color='#00e676', width=1), name='+DI'), row=current_row, col=1)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['-DI'], line=dict(color='#ff4d4d', width=1), name='-DI'), row=current_row, col=1)
-                fig.add_hline(y=25, line_dash="dash", line_color="gray", row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['ADX'], line=dict(color='#8e44ad', width=2), name=f'ADX {adx_p}'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['+DI'], line=dict(color='#27ae60', width=1), name='+DI'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['-DI'], line=dict(color='#c0392b', width=1), name='-DI'), row=current_row, col=1)
+                fig.add_hline(y=25, line_dash="dash", line_color="#7f8c8d", row=current_row, col=1)
             elif subplot == "Estocástico":
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['%K'], line=dict(color='#3498db', width=1.5), name='%K'), row=current_row, col=1)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['%D'], line=dict(color='#ff9f43', width=1.5, dash='dot'), name='%D'), row=current_row, col=1)
-                fig.add_hline(y=80, line_dash="dash", line_color="#ff4d4d", row=current_row, col=1)
-                fig.add_hline(y=20, line_dash="dash", line_color="#00e676", row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['%K'], line=dict(color='#2980b9', width=1.5), name='%K'), row=current_row, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['%D'], line=dict(color='#d35400', width=1.5, dash='dot'), name='%D'), row=current_row, col=1)
+                fig.add_hline(y=80, line_dash="dash", line_color="#e74c3c", row=current_row, col=1)
+                fig.add_hline(y=20, line_dash="dash", line_color="#2ecc71", row=current_row, col=1)
             current_row += 1
 
-        fig.update_layout(height=500 + (200 * num_subplots), template='plotly_dark', plot_bgcolor='#12141c', paper_bgcolor='#12141c', showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="white")), margin=dict(l=10, r=10, t=30, b=10))
-        for i in range(1, num_subplots + 2): fig.update_xaxes(rangeslider_visible=False, showgrid=True, gridcolor='#2b3040', row=i, col=1)
+        # Renderización de Plotly para tema claro
+        fig.update_layout(
+            height=500 + (200 * num_subplots), 
+            template='plotly_white', 
+            plot_bgcolor='#ffffff', 
+            paper_bgcolor='#ffffff', 
+            showlegend=True, 
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#333333")), 
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        for i in range(1, num_subplots + 2): 
+            fig.update_xaxes(rangeslider_visible=False, showgrid=True, gridcolor='#e0e6ed', row=i, col=1)
+            fig.update_yaxes(showgrid=True, gridcolor='#e0e6ed', row=i, col=1)
+            
         st.plotly_chart(fig, use_container_width=True)
 
 # ----------------- TAB 2: DATOS DINÁMICOS -----------------
 with tab_datos:
-    st.markdown(f"### Desglose Parametrizado y Señales en Tiempo Real ({activo_seleccionado})")
+    st.markdown(f"### 📋 Matriz de Desglose Técnico ({activo_seleccionado})")
+    st.markdown("Evaluación algorítmica y paramétrica en el último corte de mercado (T=0).")
+    
     if df_chart is not None and not df_chart.empty:
         ultima_fila = df_chart.iloc[-1]
-        datos = {
-            "Cierre USD": ultima_fila['Close'], "Volumen": ultima_fila['Volume'],
-            f"SMA {mm_rapida}": ultima_fila[f'SMA_{mm_rapida}'], f"SMA {mm_lenta}": ultima_fila[f'SMA_{mm_lenta}'],
-            f"EMA {mm_rapida}": ultima_fila[f'EMA_{mm_rapida}'], f"EMA {mm_lenta}": ultima_fila[f'EMA_{mm_lenta}'],
-            f"RSI ({rsi_p})": ultima_fila[f'RSI_{rsi_p}'], f"ADX ({adx_p})": ultima_fila['ADX'],
-            "MACD (Línea)": ultima_fila['MACD_Line'], "MACD (Señal)": ultima_fila['Signal_Line'],
-            f"BB_UB ({bb_periodos})": ultima_fila[f'UB_{bb_periodos}'], f"BB_LB ({bb_periodos})": ultima_fila[f'LB_{bb_periodos}'],
-            f"Estocástico %K": ultima_fila['%K'], "Parabolic SAR": ultima_fila['SAR'], "OBV": ultima_fila['OBV']
-        }
         
-        # Iterar sobre las columnas de posiciones (Pos_) e inyectar el mandato exacto al final
+        # --- KPIs de Resumen Superior ---
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Cierre Actual", f"${ultima_fila['Close']:,.2f}")
+        c2.metric("Volumen Negociado", f"{ultima_fila['Volume']:,.0f}")
+        c3.metric(f"RSI ({rsi_p})", f"{ultima_fila[f'RSI_{rsi_p}']:.2f}")
+        c4.metric(f"Fuerza ADX ({adx_p})", f"{ultima_fila['ADX']:.2f}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 🔍 Análisis Multiestrategia por Familia de Indicador")
+        
+        # --- Construcción Dinámica de la Tabla Estructurada ---
+        filas_desglose = []
+        
         for col in df_chart.columns:
             if col.startswith('Pos_'):
                 val = ultima_fila[col]
-                estado = "🟢 Largo / Compra" if val == 1.0 else "🔴 Corto / Venta" if val == -1.0 else "⚪ Cash / Neutral"
-                datos[col.replace('Pos_', 'Señal ')] = estado
-
-        df_dinamico = pd.DataFrame(list(datos.items()), columns=["Métrica / Estrategia", "Valor Registrado"])
-        df_dinamico['Valor Registrado'] = df_dinamico['Valor Registrado'].apply(lambda x: f"{x:,.4f}" if isinstance(x, (int, float)) else str(x))
-        st.dataframe(df_dinamico, use_container_width=True, hide_index=True)
+                estado = "🟢 LARGO / COMPRA" if val == 1.0 else "🔴 CORTO / VENTA" if val == -1.0 else "⚪ NEUTRAL / ESPERA"
+                
+                familia = ""
+                valores = ""
+                nombre_estrategia = col.replace('Pos_', '')
+                
+                # Identificación y mapeo de valores críticos por estrategia
+                if 'MM_' in col:
+                    familia = "Medias Móviles"
+                    valores = f"Cierre: {ultima_fila['Close']:.2f} | Rápida: {ultima_fila[f'EMA_{mm_rapida}']:.2f} | Lenta: {ultima_fila[f'EMA_{mm_lenta}']:.2f}"
+                elif 'BB_' in col:
+                    familia = "Bandas Bollinger"
+                    valores = f"UB: {ultima_fila[f'UB_{bb_periodos}']:.2f} | Cierre: {ultima_fila['Close']:.2f} | LB: {ultima_fila[f'LB_{bb_periodos}']:.2f}"
+                elif 'STOCH_' in col:
+                    familia = "Estocástico"
+                    valores = f"%K: {ultima_fila['%K']:.2f} | %D: {ultima_fila['%D']:.2f}"
+                elif 'OBV_' in col:
+                    familia = "On-Balance Vol"
+                    valores = f"OBV: {ultima_fila['OBV']:,.0f} | SMA20: {ultima_fila['OBV_SMA20']:,.0f}"
+                elif 'MACD_' in col:
+                    familia = "MACD"
+                    valores = f"MACD: {ultima_fila['MACD_Line']:.2f} | Señal: {ultima_fila['Signal_Line']:.2f} | Hist: {ultima_fila['Histograma']:.2f}"
+                elif 'ADX_' in col:
+                    familia = "ADX / DMI"
+                    valores = f"ADX: {ultima_fila['ADX']:.2f} | +DI: {ultima_fila['+DI']:.2f} | -DI: {ultima_fila['-DI']:.2f}"
+                elif 'RSI_' in col:
+                    familia = "RSI"
+                    valores = f"RSI: {ultima_fila[f'RSI_{rsi_p}']:.2f} | M.A: {ultima_fila.get(f'SMA9_del_RSI', 0):.2f}"
+                elif 'SAR_' in col:
+                    familia = "Parabolic SAR"
+                    valores = f"SAR: {ultima_fila['SAR']:.2f} | Cierre: {ultima_fila['Close']:.2f}"
+                
+                filas_desglose.append({
+                    "Familia Técnica": familia,
+                    "Variante / Estrategia Evaluada": nombre_estrategia.replace('_', ' '),
+                    "Lecturas Clave del Algoritmo": valores,
+                    "Mandato (Señal)": estado
+                })
+        
+        df_dinamico = pd.DataFrame(filas_desglose)
+        
+        # Renderizamos con las columnas optimizadas para interpretación
+        st.dataframe(
+            df_dinamico,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Familia Técnica": st.column_config.TextColumn("Familia Técnica", width="medium"),
+                "Variante / Estrategia Evaluada": st.column_config.TextColumn("Variante / Estrategia Evaluada", width="medium"),
+                "Lecturas Clave del Algoritmo": st.column_config.TextColumn("Lecturas Clave del Algoritmo", width="large"),
+                "Mandato (Señal)": st.column_config.TextColumn("Mandato (Señal)", width="medium")
+            }
+        )
 
 # ----------------- TAB 3: BACKTESTING -----------------
 with tab_backtest:
@@ -238,45 +310,154 @@ with tab_backtest:
     if df_chart is not None and not df_chart.empty:
         cols_posicion = [col for col in df_chart.columns if col.startswith('Pos_')]
         
-        estrategia_visual = st.selectbox("🎯 Seleccione la Estrategia a Evaluar Sincronizada", cols_posicion, format_func=lambda x: x.replace('Pos_', ''))
+        # Mapeo estructurado para el filtro de 2 niveles
+        familias = {
+            "Medias Móviles": "Pos_MM_",
+            "Bandas de Bollinger": "Pos_BB_",
+            "Oscilador Estocástico": "Pos_STOCH_",
+            "On-Balance Volume (OBV)": "Pos_OBV_",
+            "MACD": "Pos_MACD_",
+            "ADX": "Pos_ADX_",
+            "RSI": "Pos_RSI_",
+            "Parabolic SAR": "Pos_SAR_"
+        }
         
-        # Filtramos la curva de retornos sólo para la estrategia seleccionada y el Buy & Hold
+        col1, col2 = st.columns(2)
+        
+        # 1er Filtro: Indicador Principal
+        with col1:
+            familia_seleccionada = st.selectbox("📊 Seleccione la Familia de Indicadores", list(familias.keys()))
+        
+        prefijo = familias[familia_seleccionada]
+        estrategias_disponibles = [col for col in cols_posicion if col.startswith(prefijo)]
+        
+        # 2do Filtro: Estrategia del indicador
+        with col2:
+            estrategia_visual = st.selectbox(
+                "🎯 Seleccione la Estrategia a Evaluar Sincronizada", 
+                estrategias_disponibles, 
+                format_func=lambda x: x.replace(prefijo, '').replace('_', ' ')
+            )
+        
         df_bt, cols_retornos = calcular_rendimientos(df_chart.copy(), 'Close', [estrategia_visual])
         nombre_estrategia = estrategia_visual.replace('Pos_', '')
         df_metrics = calcular_metricas(df_bt, cols_retornos, [nombre_estrategia])
         
         st.markdown(f"#### Análisis Sincronizado de Capital vs Entradas en `{nombre_estrategia}`")
         
-        # Lienzo apilado compartido: Gráfico 1 (Precio + Señales) -> Gráfico 2 (Curva de Capital)
-        fig_bt = make_subplots(
-            rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05,
-            subplot_titles=("1. Diagnóstico Gráfico de Entradas y Salidas en Precio", "2. Evolución y Crecimiento Acumulado de Capital (Base 1.0)"),
-            row_heights=[0.5, 0.5]
-        )
+        # Determinar si el indicador requiere un panel inferior o se grafica sobre el precio
+        requiere_subplot = familia_seleccionada in ["Oscilador Estocástico", "On-Balance Volume (OBV)", "MACD", "ADX", "RSI"]
         
-        # --- Gráfico Superior: Acción del Precio y Puntos de Giro ---
-        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['Close'], mode='lines', name='Precio Activo', line=dict(color='#8c9bb5', width=1.5)), row=1, col=1)
+        if requiere_subplot:
+            fig_bt = make_subplots(
+                rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04,
+                subplot_titles=(
+                    f"1. Entradas y Salidas: {nombre_estrategia}", 
+                    f"2. Indicador Técnico: {familia_seleccionada}",
+                    "3. Evolución y Crecimiento Acumulado de Capital (Base 1.0)"
+                ),
+                row_heights=[0.4, 0.3, 0.3]
+            )
+            row_equity = 3
+            altura_grafico = 900
+        else:
+            fig_bt = make_subplots(
+                rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+                subplot_titles=(
+                    f"1. Entradas y Salidas + Capas de {familia_seleccionada}", 
+                    "2. Evolución y Crecimiento Acumulado de Capital (Base 1.0)"
+                ),
+                row_heights=[0.5, 0.5]
+            )
+            row_equity = 2
+            altura_grafico = 750
+
+        # --- Fila 1: Acción del Precio y Puntos de Giro ---
+        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['Close'], mode='lines', name='Precio Activo', line=dict(color='#5c677d', width=1.5)), row=1, col=1)
         
-        # Lógica matemática precisa para atrapar los eventos en que el algoritmo cambia a un estado activo o neutro
         cambios = df_bt[estrategia_visual].diff()
         compras = df_bt[(cambios != 0) & (df_bt[estrategia_visual] == 1.0)]
         ventas_cortos = df_bt[(cambios != 0) & (df_bt[estrategia_visual] == -1.0)]
         salidas_cash = df_bt[(cambios != 0) & (df_bt[estrategia_visual] == 0.0)]
         
-        fig_bt.add_trace(go.Scatter(x=compras.index, y=compras['Close'], mode='markers', marker=dict(symbol='triangle-up', size=14, color='#00e676', line=dict(width=1, color='black')), name='Entrada (Long)'), row=1, col=1)
-        fig_bt.add_trace(go.Scatter(x=ventas_cortos.index, y=ventas_cortos['Close'], mode='markers', marker=dict(symbol='triangle-down', size=14, color='#ff4d4d', line=dict(width=1, color='black')), name='Venta (Short)'), row=1, col=1)
-        fig_bt.add_trace(go.Scatter(x=salidas_cash.index, y=salidas_cash['Close'], mode='markers', marker=dict(symbol='x', size=10, color='#f1c40f'), name='Salida a Cash (Filtro)'), row=1, col=1)
+        fig_bt.add_trace(go.Scatter(x=compras.index, y=compras['Close'], mode='markers', marker=dict(symbol='triangle-up', size=14, color='#2ecc71', line=dict(width=1, color='black')), name='Entrada (Long)'), row=1, col=1)
+        fig_bt.add_trace(go.Scatter(x=ventas_cortos.index, y=ventas_cortos['Close'], mode='markers', marker=dict(symbol='triangle-down', size=14, color='#e74c3c', line=dict(width=1, color='black')), name='Venta (Short)'), row=1, col=1)
+        fig_bt.add_trace(go.Scatter(x=salidas_cash.index, y=salidas_cash['Close'], mode='markers', marker=dict(symbol='x', size=10, color='#f39c12'), name='Salida a Cash (Filtro)'), row=1, col=1)
 
-        # --- Gráfico Inferior: Curvas de Equity Comparativas ---
+        # --- Gráficos de Indicadores (Fila 1 Overlays o Fila 2 Subplots) ---
+        if familia_seleccionada == "Medias Móviles":
+            if "SMA" in estrategia_visual:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'SMA_{mm_rapida}'], line=dict(color='#e67e22', width=1.5), name=f'SMA {mm_rapida}'), row=1, col=1)
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'SMA_{mm_lenta}'], line=dict(color='#2980b9', width=1.5), name=f'SMA {mm_lenta}'), row=1, col=1)
+            else:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'EMA_{mm_rapida}'], line=dict(color='#27ae60', width=1.5), name=f'EMA {mm_rapida}'), row=1, col=1)
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'EMA_{mm_lenta}'], line=dict(color='#c0392b', width=1.5), name=f'EMA {mm_lenta}'), row=1, col=1)
+
+        elif familia_seleccionada == "Bandas de Bollinger":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'UB_{bb_periodos}'], line=dict(color='rgba(0,0,0,0.2)', width=1, dash='dot'), name='Banda Sup'), row=1, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'MB_{bb_periodos}'], line=dict(color='rgba(0,0,0,0.3)', width=1, dash='dot'), name='Media Central'), row=1, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'LB_{bb_periodos}'], line=dict(color='rgba(0,0,0,0.2)', width=1, dash='dot'), name='Banda Inf', fill='tonexty', fillcolor='rgba(0,0,0,0.05)'), row=1, col=1)
+
+        elif familia_seleccionada == "Parabolic SAR":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['SAR'], mode='markers', marker=dict(color='#8e44ad', size=3), name='SAR'), row=1, col=1)
+            if "Filtro_EMA" in estrategia_visual:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'EMA_{mm_lenta}'], line=dict(color='#2980b9', width=1.5), name=f'EMA {mm_lenta}'), row=1, col=1)
+
+        elif familia_seleccionada == "MACD":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['MACD_Line'], line=dict(color='#2980b9', width=1.5), name='MACD'), row=2, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['Signal_Line'], line=dict(color='#d35400', width=1.5), name='Señal'), row=2, col=1)
+            colores_hist = ['#2ecc71' if val >= 0 else '#e74c3c' for val in df_bt['Histograma']]
+            fig_bt.add_trace(go.Bar(x=df_bt.index, y=df_bt['Histograma'], marker_color=colores_hist, name='Histograma'), row=2, col=1)
+
+        elif familia_seleccionada == "RSI":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'RSI_{rsi_p}'], line=dict(color='#d35400', width=1.5), name=f'RSI {rsi_p}'), row=2, col=1)
+            if "Gatillo" in estrategia_visual:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['SMA9_del_RSI'], line=dict(color='#2980b9', width=1.5, dash='dot'), name='SMA 9 RSI'), row=2, col=1)
+            fig_bt.add_hline(y=70, line_dash="dash", line_color="#e74c3c", row=2, col=1)
+            fig_bt.add_hline(y=50, line_dash="dash", line_color="#bdc3c7", row=2, col=1)
+            fig_bt.add_hline(y=30, line_dash="dash", line_color="#2ecc71", row=2, col=1)
+
+        elif familia_seleccionada == "Oscilador Estocástico":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['%K'], line=dict(color='#2980b9', width=1.5), name='%K'), row=2, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['%D'], line=dict(color='#d35400', width=1.5, dash='dot'), name='%D'), row=2, col=1)
+            fig_bt.add_hline(y=80, line_dash="dash", line_color="#e74c3c", row=2, col=1)
+            fig_bt.add_hline(y=20, line_dash="dash", line_color="#2ecc71", row=2, col=1)
+
+        elif familia_seleccionada == "ADX":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['ADX'], line=dict(color='#8e44ad', width=2), name=f'ADX {adx_p}'), row=2, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['+DI'], line=dict(color='#27ae60', width=1), name='+DI'), row=2, col=1)
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['-DI'], line=dict(color='#c0392b', width=1), name='-DI'), row=2, col=1)
+            fig_bt.add_hline(y=25, line_dash="dash", line_color="#7f8c8d", row=2, col=1)
+
+        elif familia_seleccionada == "On-Balance Volume (OBV)":
+            fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['OBV'], line=dict(color='#16a085', width=1.5), name='OBV'), row=2, col=1)
+            if "Cruce_Medias" in estrategia_visual:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['OBV_EMA10'], line=dict(color='#d35400', width=1.5), name='OBV EMA 10'), row=2, col=1)
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['OBV_SMA30'], line=dict(color='#2980b9', width=1.5, dash='dot'), name='OBV SMA 30'), row=2, col=1)
+            else:
+                fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['OBV_SMA20'], line=dict(color='#f39c12', width=1.5, dash='dot'), name='OBV SMA 20'), row=2, col=1)
+
+        # --- Gráfico Final (Fila 2 o 3): Curvas Equity Comparativas ---
         ret_col = cols_retornos[1]
-        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['Cum_Retorno_Mercado'], mode='lines', name='Buy & Hold (Mercado)', line=dict(color='#00e676', width=2.5)), row=2, col=1)
-        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'Cum_{ret_col}'], mode='lines', name=f'Rendimiento {nombre_estrategia}', line=dict(color='#e74c3c', width=2)), row=2, col=1)
+        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt['Cum_Retorno_Mercado'], mode='lines', name='Buy & Hold (Mercado)', line=dict(color='#2ecc71', width=2.5)), row=row_equity, col=1)
+        fig_bt.add_trace(go.Scatter(x=df_bt.index, y=df_bt[f'Cum_{ret_col}'], mode='lines', name=f'Rendimiento {nombre_estrategia}', line=dict(color='#c0392b', width=2)), row=row_equity, col=1)
         
-        fig_bt.update_layout(height=750, template='plotly_dark', plot_bgcolor='#12141c', paper_bgcolor='#12141c', margin=dict(l=10, r=10, t=30, b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-        fig_bt.update_xaxes(rangeslider_visible=False, row=1, col=1)
-        fig_bt.update_xaxes(rangeslider_visible=False, row=2, col=1)
+        # Renderización de Plotly para Backtest (Tema Claro y Dinámico)
+        fig_bt.update_layout(
+            height=altura_grafico, 
+            template='plotly_white', 
+            plot_bgcolor='#ffffff', 
+            paper_bgcolor='#ffffff', 
+            margin=dict(l=10, r=10, t=30, b=10), 
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#333333"))
+        )
+        
+        for i in range(1, (3 if requiere_subplot else 2) + 1):
+            fig_bt.update_xaxes(rangeslider_visible=False, showgrid=True, gridcolor='#e0e6ed', row=i, col=1)
+            fig_bt.update_yaxes(showgrid=True, gridcolor='#e0e6ed', row=i, col=1)
+        
         fig_bt.update_yaxes(title_text="Precio USD", row=1, col=1)
-        fig_bt.update_yaxes(title_text="Capital Base 1", row=2, col=1)
+        fig_bt.update_yaxes(title_text="Capital Base 1", row=row_equity, col=1)
 
         st.plotly_chart(fig_bt, use_container_width=True)
 
