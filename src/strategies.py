@@ -2,10 +2,6 @@ import numpy as np
 import pandas as pd
 
 def generar_posicion(df, cond_compra=None, cond_venta=None, cond_neutral=None):
-    """
-    Motor central unificado para inyectar señales en la serie de tiempo.
-    Inicializa en NaN para permitir que ffill() propague el último estado conocido.
-    """
     senal = pd.Series(np.nan, index=df.index)
     
     if cond_compra is not None:
@@ -15,7 +11,9 @@ def generar_posicion(df, cond_compra=None, cond_venta=None, cond_neutral=None):
     if cond_neutral is not None:
         senal.loc[cond_neutral] = 0.0
         
-    return senal.ffill().fillna(0.0)
+    posicion = senal.ffill().fillna(0.0)
+    # Adaptación Long-Only: Todo estado vendido (-1.0) se convierte en Efectivo (0.0)[cite: 18]
+    return posicion.replace(-1.0, 0.0)
 
 # ==========================================
 # Medias Móviles (4 Estrategias)
@@ -44,8 +42,8 @@ def estrategias_medias_moviles(df, mm_r=20, mm_l=50):
 def estrategias_bollinger(df, periodos=20):
     ub, lb, mb = f'UB_{periodos}', f'LB_{periodos}', f'MB_{periodos}'
     
-    c_e1 = (df['Close'] > df[lb]) & (df['Close'].shift(1) <= df[lb].shift(1))
-    v_e1 = (df['Close'] < df[ub]) & (df['Close'].shift(1) >= df[ub].shift(1))
+    c_e1 = (df['Close'] < df[lb]) & (df['Close'].shift(1) >= df[lb].shift(1))
+    v_e1 = (df['Close'] > df[ub]) & (df['Close'].shift(1) <= df[ub].shift(1))
     df['Pos_BB_E1_Reversion'] = generar_posicion(df, cond_compra=c_e1, cond_venta=v_e1)
     
     c_e2 = (df['Close'] > df[ub]) & (df['Close'].shift(1) <= df[ub].shift(1))
@@ -147,10 +145,10 @@ def estrategias_rsi(df, rsi_p=14, sma_rsi=9):
 # Parabolic SAR (2 Estrategias)
 # ==========================================
 def estrategias_sar(df, ema_l=50):
-    df['Pos_SAR_E1_Puro'] = df['SAR_Trend']
+    df['Pos_SAR_E1_Puro'] = np.where(df['SAR_Trend'] == 1, 1.0, 0.0)
     
     c_e2 = (df['SAR_Trend'] == 1) & (df['Close'] > df[f'EMA_{ema_l}'])
-    n_e2 = (df['SAR_Trend'] == -1)
+    n_e2 = (df['SAR_Trend'] == -1) | (df['Close'] < df[f'EMA_{ema_l}'])
     df['Pos_SAR_E2_Filtro_EMA'] = generar_posicion(df, cond_compra=c_e2, cond_neutral=n_e2)
     return df
 
@@ -158,7 +156,6 @@ def estrategias_sar(df, ema_l=50):
 # Estrategias Conjuntas (Sinergia Cuantitativa)
 # ==========================================
 def estrategias_conjuntas(df, ema_l=50, bb_p=20, rsi_p=14, adx_u=25):
-    # E1: Confirmación de Momentum (EMA 50 + MACD)
     c_macd_alcista = (df['MACD_Line'] > df['Signal_Line']) & (df['MACD_Line'].shift(1) <= df['Signal_Line'].shift(1))
     c_macd_bajista = (df['MACD_Line'] < df['Signal_Line']) & (df['MACD_Line'].shift(1) >= df['Signal_Line'].shift(1))
     
@@ -166,7 +163,6 @@ def estrategias_conjuntas(df, ema_l=50, bb_p=20, rsi_p=14, adx_u=25):
     v_conj_e1 = c_macd_bajista & (df['Close'] < df[f'EMA_{ema_l}']) & (df['MACD_Line'] > 0)
     df['Pos_CONJ_E1_Momentum'] = generar_posicion(df, cond_compra=c_conj_e1, cond_venta=v_conj_e1)
     
-    # E2: Reversión Volátil (Bollinger + RSI)
     rsi_cruza_30 = (df[f'RSI_{rsi_p}'] > 30) & (df[f'RSI_{rsi_p}'].shift(1) <= 30)
     rsi_cruza_70 = (df[f'RSI_{rsi_p}'] < 70) & (df[f'RSI_{rsi_p}'].shift(1) >= 70)
     
@@ -174,7 +170,6 @@ def estrategias_conjuntas(df, ema_l=50, bb_p=20, rsi_p=14, adx_u=25):
     v_conj_e2 = (df['Close'] > df[f'UB_{bb_p}']) & rsi_cruza_70
     df['Pos_CONJ_E2_Reversion'] = generar_posicion(df, cond_compra=c_conj_e2, cond_venta=v_conj_e2)
     
-    # E3: Sistema Institucional (EMA + ADX + Estocástico)
     stoch_cruza_alcista = (df['%K'] > df['%D']) & (df['%K'].shift(1) <= df['%D'].shift(1))
     stoch_cruza_bajista = (df['%K'] < df['%D']) & (df['%K'].shift(1) >= df['%D'].shift(1))
     
